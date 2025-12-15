@@ -1,5 +1,7 @@
 # bin2obj
 
+[![Cross-Platform Tests](https://github.com/zchrissirhcz/bin2obj/actions/workflows/test.yml/badge.svg)](https://github.com/zchrissirhcz/bin2obj/actions)
+
 Convert binary file into object file (input of linker) when building C/C++. Compared with bin2c tools (such as incbin), using bin2obj reduce compilation time from minutes/hours to seconds!
 
 ## Features

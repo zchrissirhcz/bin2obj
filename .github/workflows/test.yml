@@ -1,0 +1,261 @@
+name: Cross-Platform Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  test-linux:
+    name: Linux (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, x86]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Install dependencies (x86_64)
+      if: matrix.arch == 'x86_64'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc binutils
+    
+    - name: Install dependencies (x86)
+      if: matrix.arch == 'x86'
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib g++-multilib binutils
+    
+    - name: Run test (x86_64)
+      if: matrix.arch == 'x86_64'
+      run: bash test.sh
+    
+    - name: Run test (x86)
+      if: matrix.arch == 'x86'
+      run: |
+        echo "==================================="
+        echo "Testing bin2obj - Linux x86"
+        echo "==================================="
+        echo
+        
+        # Create test data
+        python3 -c "with open('test_data.bin', 'wb') as f: f.write(b'Hello, this is test binary data!')"
+        
+        # Generate object file
+        python3 bin2obj.py -i test_data.bin -o test_data.o -f elf -s test --arch x86
+        
+        # Compile with -m32 flag
+        gcc -m32 example.c test_data.o -o test_program
+        
+        # Run
+        ./test_program
+        
+        # Inspect
+        nm test_data.o
+        readelf -h test_data.o
+
+  test-linux-arm64:
+    name: Linux (ARM64)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+    
+    - name: Run test in ARM64 container
+      run: |
+        docker run --rm --platform linux/arm64 \
+          -v ${{ github.workspace }}:/workspace \
+          -w /workspace \
+          arm64v8/ubuntu:latest \
+          bash -c "
+            apt-get update && \
+            apt-get install -y python3 gcc binutils && \
+            bash test.sh
+          "
+
+  test-macos:
+    name: macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-15
+          - arch: arm64
+            runner: macos-14
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Run test
+      run: bash test.sh
+    
+    - name: Verify architecture
+      run: |
+        echo "Expected arch: ${{ matrix.arch }}"
+        echo "Actual arch: $(uname -m)"
+        file test_data.o
+        otool -h test_data.o
+
+  test-windows:
+    name: Windows (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, x86]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Add MSVC to PATH (x86_64)
+      if: matrix.arch == 'x86_64'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: amd64
+    
+    - name: Add MSVC to PATH (x86)
+      if: matrix.arch == 'x86'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x86
+    
+    - name: Run test (x86_64)
+      if: matrix.arch == 'x86_64'
+      shell: cmd
+      run: |
+        echo ===================================
+        echo Testing bin2obj - Windows x86_64
+        echo ===================================
+        
+        python -c "with open('test_data.bin', 'wb') as f: f.write(b'Hello, this is test binary data!')"
+        
+        python bin2obj.py -i test_data.bin -o test_data.obj -f coff -s test --arch x86_64
+        if %ERRORLEVEL% NEQ 0 exit /b 1
+        
+        cl /nologo example.c test_data.obj /Fe:test_program.exe
+        if %ERRORLEVEL% NEQ 0 exit /b 1
+        
+        test_program.exe
+        if %ERRORLEVEL% NEQ 0 exit /b 1
+        
+        dumpbin /SYMBOLS test_data.obj
+    
+    - name: Run test (x86)
+      if: matrix.arch == 'x86'
+      shell: cmd
+      run: |
+        echo ===================================
+        echo Testing bin2obj - Windows x86
+        echo ===================================
+        
+        python -c "with open('test_data.bin', 'wb') as f: f.write(b'Hello, this is test binary data!')"
+        
+        python bin2obj.py -i test_data.bin -o test_data.obj -f coff -s test --arch x86
+        if %ERRORLEVEL% NEQ 0 exit /b 1
+        
+        cl /nologo example.c test_data.obj /Fe:test_program.exe
+        if %ERRORLEVEL% NEQ 0 exit /b 1
+        
+        test_program.exe
+        if %ERRORLEVEL% NEQ 0 exit /b 1
+        
+        dumpbin /SYMBOLS test_data.obj
+
+  test-windows-arm64:
+    name: Windows (ARM64)
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Add MSVC to PATH
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: amd64
+    
+    - name: Test object file generation only
+      shell: cmd
+      run: |
+        echo ===================================
+        echo Testing bin2obj - Windows ARM64
+        echo ===================================
+        echo Note: Only testing object file generation (no ARM64 compiler available)
+        
+        python -c "with open('test_data.bin', 'wb') as f: f.write(b'Hello, this is test binary data!')"
+        
+        python bin2obj.py -i test_data.bin -o test_data.obj -f coff -s test --arch arm64
+        if %ERRORLEVEL% NEQ 0 exit /b 1
+        
+        echo Object file generated successfully for ARM64
+        
+        dumpbin /HEADERS test_data.obj
+        if %ERRORLEVEL% NEQ 0 (
+          echo Warning: dumpbin not available, skipping inspection
+          exit /b 0
+        )
+
+  summary:
+    name: Test Summary
+    needs: [test-linux, test-linux-arm64, test-macos, test-windows, test-windows-arm64]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Check test results
+      run: |
+        echo "Test Results Summary:"
+        echo "===================="
+        echo "Linux: ${{ needs.test-linux.result }}"
+        echo "Linux ARM64: ${{ needs.test-linux-arm64.result }}"
+        echo "macOS: ${{ needs.test-macos.result }}"
+        echo "Windows: ${{ needs.test-windows.result }}"
+        echo "Windows ARM64: ${{ needs.test-windows-arm64.result }}"
+        
+        if [[ "${{ needs.test-linux.result }}" != "success" ]] || \
+           [[ "${{ needs.test-linux-arm64.result }}" != "success" ]] || \
+           [[ "${{ needs.test-macos.result }}" != "success" ]] || \
+           [[ "${{ needs.test-windows.result }}" != "success" ]] || \
+           [[ "${{ needs.test-windows-arm64.result }}" != "success" ]]; then
+          echo "Some tests failed!"
+          exit 1
+        fi
+        
+        echo "All tests passed!"
