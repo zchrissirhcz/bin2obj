@@ -5,6 +5,22 @@ include_guard()
 
 set(_BIN2OBJ_MODULE_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+# Find Python interpreter (only once)
+if(NOT Python_EXECUTABLE)
+  find_package(Python COMPONENTS Interpreter QUIET)
+  if(NOT Python_FOUND)
+    # Fallback: try to find python3 or python directly
+    find_program(Python_EXECUTABLE
+      NAMES python3 python
+      DOC "Python interpreter"
+    )
+    if(NOT Python_EXECUTABLE)
+      message(FATAL_ERROR "bin2obj.cmake requires Python interpreter. Please install Python or set Python_EXECUTABLE manually.")
+    endif()
+  endif()
+  message(STATUS "bin2obj.cmake: Using Python - ${Python_EXECUTABLE}")
+endif()
+
 # bin2obj — Convert binary files to platform-specific object files (.o / .obj)
 #
 # This function calls the Python script `scripts/bin2obj.py` to embed a given binary file
@@ -46,7 +62,7 @@ function(bin2obj input_path output_path symbol_name)
   elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|ARM64|arm64)$")
     set(arch "arm64")
   else()
-    message(FATAL_ERROR "Unsupported architecture: ${CMAKE_SYSTEM_PROCESSOR}")
+    message(FATAL_ERROR "bin2obj.cmake: Unsupported architecture: ${CMAKE_SYSTEM_PROCESSOR}")
   endif()
 
   # format
@@ -57,12 +73,12 @@ function(bin2obj input_path output_path symbol_name)
   elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(format "mach-o")
   else()
-    message(FATAL_ERROR "Unsupported system: ${CMAKE_SYSTEM_NAME}")
+    message(FATAL_ERROR "bin2obj.cmake: Unsupported system: ${CMAKE_SYSTEM_NAME}")
   endif()
 
   # codegen
   set(Python_ARGS "${_BIN2OBJ_MODULE_DIR}/bin2obj.py -i ${input_path} -o ${output_path} -f ${format} -s ${symbol_name} -a ${alignment} --arch ${arch}")
-  message(STATUS "[bin2obj.cmake] ${Python_ARGS}")
+  message(STATUS "bin2obj.cmake: Running command: ${Python_ARGS}")
   string(REPLACE " " ";" Python_ARGS ${Python_ARGS})
   execute_process(
     COMMAND ${Python_EXECUTABLE} ${Python_ARGS}
@@ -70,8 +86,8 @@ function(bin2obj input_path output_path symbol_name)
     RESULT_VARIABLE PY_RESULT
   )
   if(PY_RESULT EQUAL 0)
-    message(STATUS "Generated object file: ${output_path}")
+    message(STATUS "bin2obj.cmake: Generated object file: ${output_path}")
   else()
-    message(FATAL_ERROR "Python script failed with exit code: ${PY_RESULT}")
+    message(FATAL_ERROR "bin2obj.cmake: Run bin2obj.py failed with exit code: ${PY_RESULT}")
   endif()
 endfunction()
