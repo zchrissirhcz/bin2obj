@@ -22,7 +22,7 @@ Convert binary file into object file (input of linker) when building C/C++. Comp
 | Implementation | ❌ Generates C array + Inline assembly | ✅ Generates object file |
 | Symbol naming | ✅ Compatible | ✅ Compatible | ✅ Fully compatible |
 | Compiler dependency | ✅ GCC; ❌ MSVC | ✅ **Any Compiler, Any linker** |
-| Compile time cost | ❌ 5 minutes ~ 5 hours | ✅ **< 5 seconds** |
+| Compile time cost | ✅ GCC is fast; ❌ MSVC is slow(minutes ~ hours) | ✅ **< 5 seconds** |
 
 ## Usage
 
@@ -153,7 +153,7 @@ test.bat
 
 ## References
 
-- [incbin](https://github.com/graphitemaster/incbin), the famous bin2c tool
+- [incbin](https://github.com/graphitemaster/incbin), the famous tool
 - object file specs:
   - [ELF Format](http://www.skyfree.org/linux/references/ELF_Format.pdf)
   - [Microsoft PE/COFF](https://docs.microsoft.com/en-us/windows/win32/debug/pe-format)
@@ -161,3 +161,4 @@ test.bat
 - xmake build tool:
   - https://github.com/xmake-io/xmake/issues/7099
   - https://github.com/xmake-io/xmake/pull/7103
+- https://github.com/vector-of-bool/cmrc
